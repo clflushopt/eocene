@@ -171,4 +171,4 @@ fn main() {
 
 # License
 
-The code is under an [MIT License].
+The code is under an [MIT License](LICENSE).
