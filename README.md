@@ -36,6 +36,139 @@ millions of rows, each operator `pull` incurs a function call either via dynamic
 dispatch or through a table using a function pointer which tend to compound when
 you have millions of rows especially when it comes to branch mis-predictions.
 
+# Example
+
+The code implements a small query engine with a SQL tokenizer and parser capable
+of representing very simple queries, the AST can then be passed to the query engine
+which will create a query plan in the form of a pipeline of operators before executing
+them.
+
+Please note that the code is not tested, most tests act just as sanity check that
+the base logic is fine. There is no error handling and consideration for edge cases.
+
+We currently implement the following operators :
+
+* Scan operator which is the starting point of the pipeline.
+* Projection operator which selects specific columns from each row.
+* Filter operator which runs predicates on rows returning only the ones that satisfy
+  the predicate.
+* Sort operator which returns rows in sorted order.
+* Join operator which implements *Nested Loop Join*.
+* Limit operator which sets a cut-off on the number of returned rows.
+
+Below is the code in `main.rs` which runs some select queries.
+
+``` rust
+
+macro_rules! query {
+    ($query_str:expr, $data:expr) => {{
+        let tokenizer = Tokenizer::new($query_str);
+        let q = Parser::new(tokenizer).parse();
+
+        let mut executor = QueryExecutor {};
+        let plan = executor.plan(q, $data);
+        QueryExecutor::execute(plan)
+    }};
+}
+
+fn main() {
+    // Example data
+    let data = vec![
+        Row::new(&[
+            "1".to_string(),
+            "Alice".to_string(),
+            "Manager".to_string(),
+            "12000".to_string(),
+        ]),
+        Row::new(&[
+            "2".to_string(),
+            "Bob".to_string(),
+            "Developer".to_string(),
+            "10000".to_string(),
+        ]),
+        Row::new(&[
+            "3".to_string(),
+            "Charlie".to_string(),
+            "Developer".to_string(),
+            "9000".to_string(),
+        ]),
+        Row::new(&[
+            "4".to_string(),
+            "David".to_string(),
+            "Analyst".to_string(),
+            "11000".to_string(),
+        ]),
+        Row::new(&[
+            "5".to_string(),
+            "Eve".to_string(),
+            "Manager".to_string(),
+            "13000".to_string(),
+        ]),
+        Row::new(&[
+            "6".to_string(),
+            "Frank".to_string(),
+            "Developer".to_string(),
+            "9500".to_string(),
+        ]),
+        Row::new(&[
+            "7".to_string(),
+            "Grace".to_string(),
+            "Analyst".to_string(),
+            "10500".to_string(),
+        ]),
+        Row::new(&[
+            "8".to_string(),
+            "Hannah".to_string(),
+            "Developer".to_string(),
+            "9800".to_string(),
+        ]),
+        Row::new(&[
+            "9".to_string(),
+            "Ivy".to_string(),
+            "Manager".to_string(),
+            "12500".to_string(),
+        ]),
+        Row::new(&[
+            "10".to_string(),
+            "Jack".to_string(),
+            "Analyst".to_string(),
+            "10200".to_string(),
+        ]),
+    ];
+
+    let queries = vec![
+        (
+            "SELECT id FROM example WHERE name = 'Ivy' LIMIT 1",
+            vec![Row::new(&["9".to_string()])],
+        ),
+        (
+            "SELECT name FROM employees WHERE role = 'Developer'",
+            vec![
+                Row::new(&["Bob".to_string()]),
+                Row::new(&["Charlie".to_string()]),
+                Row::new(&["Frank".to_string()]),
+                Row::new(&["Hannah".to_string()]),
+            ],
+        ),
+        (
+            "SELECT id FROM employees WHERE salary > 9000 LIMIT 3",
+            vec![
+                Row::new(&["1".to_string()]),
+                Row::new(&["2".to_string()]),
+                Row::new(&["4".to_string()]),
+            ],
+        ),
+    ];
+    for query in queries {
+        let results = query!(query.0, data.clone());
+        let expected = query.1;
+        assert_eq!(results, expected);
+    }
+}
+
+```
+
+
 # License
 
 The code is under an [MIT License].
