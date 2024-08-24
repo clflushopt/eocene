@@ -29,51 +29,52 @@ impl QueryExecutor {
         let mut pipeline: Box<dyn Operator> = Box::new(Scan::new(&data));
 
         // Extract query details
-        if let Query::Select {
-            columns,
-            table: _,
-            filter,
-            order_by,
-            limit,
-        } = query
-        {
-            // Apply the Filter operator if specified
-            if let Some(expr) = filter {
-                let filter = move |row: &Row| Self::eval(expr.clone(), row);
-                pipeline = Box::new(Filter::new(pipeline, filter));
-            }
+        match query {
+            Query::Select {
+                columns,
+                table: _,
+                filter,
+                order_by,
+                limit,
+            } => {
+                // Apply the Filter operator if specified
+                if let Some(expr) = filter {
+                    let filter = move |row: &Row| Self::eval(expr.clone(), row);
+                    pipeline = Box::new(Filter::new(pipeline, filter));
+                }
 
-            // Apply the Sort operator if specified
-            if let Some(ref column) = order_by {
-                let column_index: usize = match column.as_str() {
-                    "id" => 0,
-                    "name" => 1,
-                    "role" => 2,
-                    "salary" => 3,
-                    _ => unreachable!("expected column name to follow hardcoded schema"),
-                };
-                let sort_fn: Comparator =
-                    Box::new(move |a, b| a.get(column_index).cmp(&b.get(column_index)));
-                pipeline = Box::new(Sort::new(pipeline, sort_fn));
-            }
+                // Apply the Sort operator if specified
+                if let Some(ref column) = order_by {
+                    let column_index: usize = match column.as_str() {
+                        "id" => 0,
+                        "name" => 1,
+                        "role" => 2,
+                        "salary" => 3,
+                        _ => unreachable!("expected column name to follow hardcoded schema"),
+                    };
+                    let sort_fn: Comparator =
+                        Box::new(move |a, b| a.get(column_index).cmp(&b.get(column_index)));
+                    pipeline = Box::new(Sort::new(pipeline, sort_fn));
+                }
 
-            // Apply the Limit operator if specified
-            if let Some(limit) = limit {
-                pipeline = Box::new(Limit::new(pipeline, limit as usize));
-            }
+                // Apply the Limit operator if specified
+                if let Some(limit) = limit {
+                    pipeline = Box::new(Limit::new(pipeline, limit as usize));
+                }
 
-            // Apply the Project operator to select the desired columns
-            let column_indices = columns
-                .iter()
-                .map(|col| match col.as_str() {
-                    "id" => 0,
-                    "name" => 1,
-                    "role" => 2,
-                    "salary" => 3,
-                    _ => unreachable!("expected column name to follow hardcoded schema"),
-                })
-                .collect::<Vec<_>>();
-            pipeline = Box::new(Project::new(pipeline, &column_indices));
+                // Apply the Project operator to select the desired columns
+                let column_indices = columns
+                    .iter()
+                    .map(|col| match col.as_str() {
+                        "id" => 0,
+                        "name" => 1,
+                        "role" => 2,
+                        "salary" => 3,
+                        _ => unreachable!("expected column name to follow hardcoded schema"),
+                    })
+                    .collect::<Vec<_>>();
+                pipeline = Box::new(Project::new(pipeline, &column_indices));
+            }
         }
 
         pipeline

@@ -12,37 +12,6 @@ pub trait Operator {
     fn close(&self);
 }
 
-/// Identity simply returns rows as they are.
-pub struct Identity<'a> {
-    rows: &'a [Row],
-    index: usize,
-}
-
-impl<'a> Identity<'a> {
-    /// Create a new `IdentityOperator` over a slice of rows.
-    pub fn new(rows: &'a [Row]) -> Self {
-        Self { rows, index: 0 }
-    }
-}
-
-impl<'a> Operator for Identity<'a> {
-    fn open(&mut self) {
-        self.index = 0;
-    }
-
-    fn next(&mut self) -> Option<Row> {
-        if self.index < self.rows.len() {
-            let row = self.rows[self.index].clone();
-            self.index += 1;
-            Some(row)
-        } else {
-            None
-        }
-    }
-
-    fn close(&self) {}
-}
-
 /// Projection operator returns the projected column from a row.
 pub struct Project {
     input: Box<dyn Operator>,
@@ -301,7 +270,7 @@ mod interface_tests {
     #[test]
     fn scan() {
         let rows = vec![Row::new(&["1".to_string(), "Alice".to_string()])];
-        let mut scan = Scan::new(&rows);
+        let mut scan = Box::new(Scan::new(&rows));
 
         // Interface methods
         scan.open();
@@ -312,8 +281,8 @@ mod interface_tests {
     #[test]
     fn project() {
         let rows = vec![Row::new(&["1".to_string(), "Alice".to_string()])];
-        let mut scan = Scan::new(&rows);
-        let mut project = Project::new(&mut scan, &[1]);
+        let scan = Box::new(Scan::new(&rows));
+        let mut project = Project::new(scan, &[1]);
 
         // Interface methods
         project.open();
@@ -324,8 +293,9 @@ mod interface_tests {
     #[test]
     fn filter() {
         let rows = vec![Row::new(&["1".to_string(), "Alice".to_string()])];
-        let mut scan = Scan::new(&rows);
-        let mut filter = Filter::new(&mut scan, |row| row.get(0).unwrap() == "1");
+        let scan = Box::new(Scan::new(&rows));
+        let filter_fn = Box::new(|row: &Row| row.get(0).unwrap() == "1");
+        let mut filter = Box::new(Filter::new(scan, filter_fn));
 
         // Interface methods
         filter.open();
@@ -336,8 +306,8 @@ mod interface_tests {
     #[test]
     fn limit() {
         let rows = vec![Row::new(&["1".to_string(), "Alice".to_string()])];
-        let mut scan = Scan::new(&rows);
-        let mut limit = Limit::new(&mut scan, 1);
+        let scan = Box::new(Scan::new(&rows));
+        let mut limit = Limit::new(scan, 1);
 
         limit.open();
         assert!(limit.next().is_some());
@@ -347,8 +317,8 @@ mod interface_tests {
     #[test]
     fn sort() {
         let rows = vec![Row::new(&["1".to_string(), "Alice".to_string()])];
-        let mut scan = Scan::new(&rows);
-        let mut sort = Sort::new(&mut scan, |a, b| a.get(0).cmp(&b.get(0)));
+        let scan = Box::new(Scan::new(&rows));
+        let mut sort = Sort::new(scan, |a, b| a.get(0).cmp(&b.get(0)));
 
         sort.open();
         assert!(sort.next().is_some());
@@ -366,14 +336,14 @@ mod interface_tests {
             Row::new(&["2".to_string(), "B".to_string()]),
         ];
 
-        let mut left = Identity::new(&left_rows);
-        let mut right = Identity::new(&right_rows);
+        let left = Box::new(Scan::new(&left_rows));
+        let right = Box::new(Scan::new(&right_rows));
 
         // Define a simple join condition
         let join_condition = |left: &Row, right: &Row| left.get(0) == right.get(0);
 
         // Create the join operator
-        let mut join = Join::new(&mut left, &mut right, join_condition);
+        let mut join = Join::new(left, right, join_condition);
 
         // Open the operators
         join.open();
@@ -410,7 +380,7 @@ mod operator_tests {
             Row::new(&["1".to_string(), "Alice".to_string()]),
             Row::new(&["2".to_string(), "Bob".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
+        let mut scan = Box::new(Scan::new(&rows));
 
         let mut result = vec![];
         while let Some(row) = scan.next() {
@@ -427,8 +397,8 @@ mod operator_tests {
             "Alice".to_string(),
             "Engineer".to_string(),
         ])];
-        let mut scan = Scan::new(&rows);
-        let mut project = Project::new(&mut scan, &[1, 2]);
+        let scan = Box::new(Scan::new(&rows));
+        let mut project = Project::new(scan, &[1, 2]);
 
         let projected_row = project.next().unwrap();
 
@@ -443,8 +413,9 @@ mod operator_tests {
             Row::new(&["1".to_string(), "Alice".to_string()]),
             Row::new(&["2".to_string(), "Bob".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
-        let mut filter = Filter::new(&mut scan, |row| row.get(0).unwrap() == "1");
+        let scan = Box::new(Scan::new(&rows));
+        let filter_fn = Box::new(|row: &Row| row.get(0).unwrap() == "1");
+        let mut filter = Box::new(Filter::new(scan, filter_fn));
 
         let mut result = vec![];
         while let Some(row) = filter.next() {
@@ -462,8 +433,8 @@ mod operator_tests {
             Row::new(&["1".to_string(), "Alice".to_string()]),
             Row::new(&["2".to_string(), "Bob".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
-        let mut limit = Limit::new(&mut scan, 1);
+        let scan = Box::new(Scan::new(&rows));
+        let mut limit = Limit::new(scan, 1);
 
         let mut result = vec![];
         while let Some(row) = limit.next() {
@@ -490,8 +461,8 @@ mod operator_tests {
         ];
 
         // Sort by the first column (identifier)
-        let mut scan = Scan::new(&rows);
-        let mut sort_by_id = Sort::new(&mut scan, |a, b| a.get(0).cmp(&b.get(0)));
+        let scan = Box::new(Scan::new(&rows));
+        let mut sort_by_id = Sort::new(scan, |a, b| a.get(0).cmp(&b.get(0)));
 
         let mut result_by_id = vec![];
         while let Some(row) = sort_by_id.next() {
@@ -510,8 +481,8 @@ mod operator_tests {
         );
 
         // Sort by the second column (name)
-        let mut scan = Scan::new(&rows);
-        let mut sort_by_name = Sort::new(&mut scan, |a, b| a.get(1).cmp(&b.get(1)));
+        let scan = Box::new(Scan::new(&rows));
+        let mut sort_by_name = Sort::new(scan, |a, b| a.get(1).cmp(&b.get(1)));
 
         let mut result_by_name = vec![];
         while let Some(row) = sort_by_name.next() {
@@ -543,11 +514,11 @@ mod operator_tests {
             Row::new(&["2".to_string(), "24000".to_string()]),
         ];
 
-        let mut scan_left = Scan::new(&left_rows);
-        let mut scan_right = Scan::new(&right_rows);
+        let scan_left = Box::new(Scan::new(&left_rows));
+        let scan_right = Box::new(Scan::new(&right_rows));
 
-        let join_condition = |left: &Row, right: &Row| left.get(0) == right.get(0);
-        let mut join = Join::new(&mut scan_left, &mut scan_right, join_condition);
+        let join_condition = Box::new(|left: &Row, right: &Row| left.get(0) == right.get(0));
+        let mut join = Join::new(scan_left, scan_right, join_condition);
 
         join.open();
 
@@ -585,8 +556,8 @@ mod chaining_tests {
             Row::new(&["1".to_string(), "Alice".to_string(), "Engineer".to_string()]),
             Row::new(&["2".to_string(), "Bob".to_string(), "Manager".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
-        let mut project = Project::new(&mut scan, &[1]);
+        let scan = Box::new(Scan::new(&rows));
+        let mut project = Project::new(scan, &[1]);
 
         let mut result = vec![];
         while let Some(row) = project.next() {
@@ -604,9 +575,10 @@ mod chaining_tests {
             Row::new(&["1".to_string(), "Alice".to_string(), "Engineer".to_string()]),
             Row::new(&["2".to_string(), "Bob".to_string(), "Manager".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
-        let mut filter = Filter::new(&mut scan, |row| row.get(0).unwrap() == "1");
-        let mut project = Project::new(&mut filter, &[1]);
+        let scan = Box::new(Scan::new(&rows));
+        let filter_fn = Box::new(|row: &Row| row.get(0).unwrap() == "1");
+        let filter = Box::new(Filter::new(scan, filter_fn));
+        let mut project = Project::new(filter, &[1]);
 
         let mut result = vec![];
         while let Some(row) = project.next() {
@@ -624,9 +596,9 @@ mod chaining_tests {
             Row::new(&["1".to_string(), "Alice".to_string()]),
             Row::new(&["3".to_string(), "Carol".to_string()]),
         ];
-        let mut scan = Scan::new(&rows);
-        let mut sort = Sort::new(&mut scan, |a, b| a.get(0).cmp(&b.get(0)));
-        let mut limit = Limit::new(&mut sort, 2);
+        let scan = Box::new(Scan::new(&rows));
+        let sort = Box::new(Sort::new(scan, |a, b| a.get(0).cmp(&b.get(0))));
+        let mut limit = Limit::new(sort, 2);
 
         let mut result = vec![];
         while let Some(row) = limit.next() {
@@ -655,17 +627,17 @@ mod chaining_tests {
         ];
 
         // 1. Scan operator
-        let mut scan = Scan::new(&employee_rows);
+        let scan = Box::new(Scan::new(&employee_rows));
 
         // 2. Filter operator to keep only "Manager"
         let filter_condition = |row: &Row| row.get(2) == Some(&"Manager".to_string());
-        let mut filter = Filter::new(&mut scan, filter_condition);
+        let filter = Box::new(Filter::new(scan, filter_condition));
 
         // 3. Sort operator to sort by ID (assuming the ID is in the first column)
-        let mut sort = Sort::new(&mut filter, |a, b| a.get(0).cmp(&b.get(0)));
+        let sort = Sort::new(filter, |a, b| a.get(0).cmp(&b.get(0)));
 
         // 4. Project operator to project only the Name column (assuming the Name is in the second column)
-        let mut project = Project::new(&mut sort, &[1]);
+        let mut project = Project::new(Box::new(sort), &[1]);
 
         // Open the operators
         project.open();
