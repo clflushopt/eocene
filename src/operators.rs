@@ -349,19 +349,16 @@ mod interface_tests {
         join.open();
 
         // Check that the operator conforms to the interface
-        assert_eq!(
+        assert!(
             join.next().is_some(),
-            true,
             "Join operator should return some rows"
         );
-        assert_eq!(
+        assert!(
             join.next().is_some(),
-            true,
             "Join operator should return some rows"
         );
-        assert_eq!(
+        assert!(
             join.next().is_none(),
-            true,
             "Join operator should return no more rows"
         );
 
@@ -630,7 +627,7 @@ mod chaining_tests {
         let scan = Box::new(Scan::new(&employee_rows));
 
         // 2. Filter operator to keep only "Manager"
-        let filter_condition = |row: &Row| row.get(2) == Some(&"Manager".to_string());
+        let filter_condition = |row: &Row| row.get(2) == Some("Manager");
         let filter = Box::new(Filter::new(scan, filter_condition));
 
         // 3. Sort operator to sort by ID (assuming the ID is in the first column)
