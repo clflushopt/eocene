@@ -36,6 +36,10 @@ millions of rows, each operator `pull` incurs a function call either via dynamic
 dispatch or through a table using a function pointer which tend to compound when
 you have millions of rows especially when it comes to branch mis-predictions.
 
+Just for demonstration purposes, I tried to approach the code generation part by
+doing a small pass where I compile each operator into assembly using a runtime
+assembler for x86. The code which is largely non-functional can be found in [PR #1](https://github.com/clflushopt/eocene/pull/1)
+
 # Example
 
 The code implements a small query engine with a SQL tokenizer and parser capable
