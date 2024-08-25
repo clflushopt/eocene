@@ -1,7 +1,36 @@
-# Minimally viable query engine with the Volcano model
+# Minimally Viable Query Engine with Interepretation & Runtime Code Generation
 
 This is an implementation of a minimal query engine capable of executing
 a subset of your usual SQL operators by following the Volcano model.
+
+We implement both traditional interpreter and runtime code
+generation based query execution.
+
+For runtime code generation we actually compile to native code directly to x86
+but the query execution can support any backend since we fix the code gen model
+across all of them.
+
+
+## Overview
+
+`eocence` is a demonstration of how a simple query engine can be implemented
+based on the iterator model (non-batched tuples).
+
+In **interpretation** mode we currently support the following operators :
+
+* Scan operator which is the starting point of the pipeline.
+* Projection operator which selects specific columns from each row.
+* Filter operator which runs predicates on rows returning only the ones that satisfy
+  the predicate.
+* Sort operator which returns rows in sorted order.
+* Join operator which implements *Nested Loop Join*.
+* Limit operator which sets a cut-off on the number of returned rows.
+
+When the query execution mode is set to **runtime code generation** then only
+queries that use scans, projections and filters are currently supported with
+the rest left as an exercice to the reader.
+
+## The Volcano Model
 
 The Volcano model often also described as *the classical iterator model* 
 initially described in [Volcano - An Extensible and Parallel Query Evaluation System](https://dl.acm.org/doi/10.1109/69.273032)
@@ -36,25 +65,12 @@ millions of rows, each operator `pull` incurs a function call either via dynamic
 dispatch or through a table using a function pointer which tend to compound when
 you have millions of rows especially when it comes to branch mis-predictions.
 
-# Example
+## Example
 
 The code implements a small query engine with a SQL tokenizer and parser capable
 of representing very simple queries, the AST can then be passed to the query engine
 which will create a query plan in the form of a pipeline of operators before executing
 them.
-
-Please note that the code is not tested, most tests act just as sanity check that
-the base logic is fine. There is no error handling and consideration for edge cases.
-
-We currently implement the following operators :
-
-* Scan operator which is the starting point of the pipeline.
-* Projection operator which selects specific columns from each row.
-* Filter operator which runs predicates on rows returning only the ones that satisfy
-  the predicate.
-* Sort operator which returns rows in sorted order.
-* Join operator which implements *Nested Loop Join*.
-* Limit operator which sets a cut-off on the number of returned rows.
 
 Below is the code in `main.rs` which runs some select queries.
 
